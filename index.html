@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mathrix</title>
+    <style>
+        /* Existing CSS styles */
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom right, #a8edea, #fed6e3);
+            overflow: hidden; /* Prevent scrollbar during animations */
+        }
+        h1 {
+            font-size: 3em;
+            color: #ff6f61;
+            margin-top: 20px;
+        }
+        #game-container {
+            background-color: rgba(255, 255, 255, 0.8);
+            margin: 20px auto;
+            padding: 20px;
+            border-radius: 15px;
+            width: 80%;
+            max-width: 600px;
+            position: relative;
+            z-index: 1;
+        }
+        #problem-container {
+            margin-bottom: 20px;
+        }
+        #problem {
+            font-size: 2.5em;
+            color: #4a90e2;
+            display: block; /* Changed from inline-block to block */
+            margin: 0 auto;  /* Center the problem */
+            text-align: center; /* Center the text */
+            line-height: 1.2;
+        }
+        #problem .operator {
+            position: absolute;
+            left: 0;
+        }
+        #answer {
+            font-size: 1.5em;
+            padding: 10px;
+            width: 150px;
+            border-radius: 10px;
+            border: 2px solid #4a90e2;
+            margin-top: 20px;
+        }
+        #feedback {
+            margin-top: 20px;
+            min-height: 30px;
+            font-size: 1.2em;
+            color: #ff6f61;
+        }
+        #celebration {
+            margin-top: 20px;
+            font-size: 1.5em;
+            color: #8b572a;
+            min-height: 40px;
+        }
+        #score {
+            margin-top: 30px;
+            font-size: 1.2em;
+        }
+        #level {
+            margin-top: 10px;
+            font-size: 1.5em;
+            color: #f5a623;
+        }
+        #fireworks, #fire-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+        }
+        #incorrect-answer {
+            margin-top: 10px;
+            font-size: 1.2em;
+            color: #d0021b;
+        }
+        .vertical-problem {
+            position: relative;
+            display: inline-block;
+            text-align: right;
+        }
+        .vertical-problem .operator {
+            position: absolute;
+            left: -1.5em;
+            top: calc(50% - 0.5em);
+        }
+        .vertical-problem .line {
+            border-top: 2px solid #4a90e2;
+            margin-top: 0.2em;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Mathrix</h1>
+    <div id="game-container">
+        <div id="level">Level: <span id="current-level">1</span></div>
+        <div id="problem-container">
+            <div id="problem"></div>
+            <input type="number" id="answer" placeholder="Your answer" autofocus>
+        </div>
+        <div id="feedback"></div>
+        <div id="incorrect-answer"></div>
+        <div id="celebration"></div>
+        <div id="score">
+            <p>Total Correct: <span id="total-correct">0</span></p>
+            <p>Consecutive Correct: <span id="consecutive-correct">0</span></p>
+        </div>
+    </div>
+    <canvas id="fireworks"></canvas>
+    <canvas id="fire-animation"></canvas>
+
+    <script>
+        let level = 1;
+        let totalCorrect = 0;
+        let consecutiveCorrect = 0;
+        let currentAnswer = 0;
+        let currentProblem = '';
+        let displayProblem = '';
+
+        const problemElement = document.getElementById('problem');
+        const answerInput = document.getElementById('answer');
+        const feedbackElement = document.getElementById('feedback');
+        const incorrectAnswerElement = document.getElementById('incorrect-answer');
+        const celebrationElement = document.getElementById('celebration');
+        const totalCorrectElement = document.getElementById('total-correct');
+        const consecutiveCorrectElement = document.getElementById('consecutive-correct');
+        const currentLevelElement = document.getElementById('current-level');
+        const fireworksCanvas = document.getElementById('fireworks');
+        const fireCanvas = document.getElementById('fire-animation');
+        const fireworksCtx = fireworksCanvas.getContext('2d');
+        const fireCtx = fireCanvas.getContext('2d');
+
+        fireworksCanvas.width = window.innerWidth;
+        fireworksCanvas.height = window.innerHeight;
+        fireCanvas.width = window.innerWidth;
+        fireCanvas.height = window.innerHeight;
+
+        function generateProblem() {
+            let num1, num2, operator;
+
+            switch (level) {
+                case 1:
+                    // Level 1: Single-digit addition and subtraction
+                    operator = Math.random() < 0.5 ? '+' : '-';
+                    num1 = randomInt(1, 9);
+                    num2 = randomInt(1, 9);
+                    if (operator === '-' && num1 < num2) {
+                        [num1, num2] = [num2, num1]; // Swap to avoid negative results
+                    }
+                    break;
+                case 2:
+                    // Level 2: Double-digit plus or minus single-digit
+                    operator = Math.random() < 0.5 ? '+' : '-';
+                    num1 = randomInt(10, 99);
+                    num2 = randomInt(1, 9);
+                    break;
+                case 3:
+                    // Level 3: Single-digit multiplication
+                    operator = '*';
+                    num1 = randomInt(1, 9);
+                    num2 = randomInt(1, 9);
+                    break;
+                case 4:
+                    // Level 4: Double-digit addition and subtraction
+                    operator = Math.random() < 0.5 ? '+' : '-';
+                    num1 = randomInt(10, 99);
+                    num2 = randomInt(10, 99);
+                    if (operator === '-' && num1 < num2) {
+                        [num1, num2] = [num2, num1];
+                    }
+                    break;
+                case 5:
+                    // Level 5: Single-digit division with whole number results
+                    operator = '/';
+                    num2 = randomInt(1, 9);
+                    currentAnswer = randomInt(1, 9);
+                    num1 = num2 * currentAnswer;
+                    break;
+                case 6:
+                    // Level 6: Double-digit multiplication and division
+                    operator = Math.random() < 0.5 ? '*' : '/';
+                    if (operator === '*') {
+                        num1 = randomInt(10, 99);
+                        num2 = randomInt(1, 9);
+                    } else {
+                        num2 = randomInt(1, 9);
+                        currentAnswer = randomInt(10, 99);
+                        num1 = num2 * currentAnswer;
+                    }
+                    break;
+                default:
+                    // Levels beyond 6: Mix of previous levels
+                    operator = ['+', '-', '*', '/'][randomInt(0, 3)];
+                    if (operator === '+') {
+                        num1 = randomInt(10, 99);
+                        num2 = randomInt(10, 99);
+                    } else if (operator === '-') {
+                        num1 = randomInt(10, 99);
+                        num2 = randomInt(10, 99);
+                        if (num1 < num2) [num1, num2] = [num2, num1];
+                    } else if (operator === '*') {
+                        num1 = randomInt(1, 9);
+                        num2 = randomInt(1, 9);
+                    } else if (operator === '/') {
+                        num2 = randomInt(1, 9);
+                        currentAnswer = randomInt(1, 99);
+                        num1 = num2 * currentAnswer;
+                    }
+                    break;
+            }
+
+            if (operator === '/') {
+                currentAnswer = num1 / num2;
+            } else {
+                currentAnswer = eval(`${num1} ${operator} ${num2}`);
+            }
+
+            currentProblem = `${num1} ${operator} ${num2} = ?`;
+            displayProblem = formatProblem(num1, num2, operator);
+            problemElement.innerHTML = displayProblem;
+            feedbackElement.textContent = '';
+            // Do not clear celebrationElement.textContent here
+        }
+
+        function formatProblem(num1, num2, operator) {
+            // Check if the problem involves double-digit numbers
+            if ((num1 >= 10 || num2 >= 10) && (operator === '+' || operator === '-')) {
+                let num1Str = num1.toString();
+                let num2Str = num2.toString();
+                let maxLength = Math.max(num1Str.length, num2Str.length);
+
+                // Pad numbers with spaces for alignment
+                num1Str = num1Str.padStart(maxLength, ' ');
+                num2Str = num2Str.padStart(maxLength, ' ');
+
+                return `
+                    <div class="vertical-problem">
+                        <div>${num1Str}</div>
+                        <div class="operator">${operator}</div>
+                        <div>${num2Str}</div>
+                        <div class="line"></div>
+                    </div>
+                `;
+            } else {
+                // For other problems, display horizontally
+                return `${num1} ${operator} ${num2} = ?`;
+            }
+        }
+
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        answerInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') {
+                checkAnswer();
+            }
+        });
+
+        function checkAnswer() {
+            let userAnswer = parseFloat(answerInput.value);
+
+            if (userAnswer === currentAnswer) {
+                feedbackElement.textContent = 'Correct!';
+                incorrectAnswerElement.textContent = ''; // Clear incorrect answer display
+                totalCorrect++;
+                consecutiveCorrect++;
+                showCelebration();
+                if (consecutiveCorrect % 15 === 0) {
+                    levelUp();
+                }
+            } else {
+                feedbackElement.textContent = 'Oops! Incorrect.';
+                incorrectAnswerElement.innerHTML = `The correct answer to ${displayProblem.replace('?', '')} is <strong>${currentAnswer}</strong>.`;
+                consecutiveCorrect = 0;
+                celebrationElement.textContent = '';
+            }
+
+            updateScore();
+            answerInput.value = '';
+            generateProblem();
+        }
+
+        function updateScore() {
+            totalCorrectElement.textContent = totalCorrect;
+            consecutiveCorrectElement.textContent = consecutiveCorrect;
+            currentLevelElement.textContent = level;
+        }
+
+        function levelUp() {
+            level++;
+            // Do not reset consecutiveCorrect
+            feedbackElement.textContent = 'Great job! Advancing to Level ' + level + '!';
+            celebrationElement.textContent = ''; // Clear any existing celebration messages
+            launchFireworks(level); // Enhanced fireworks
+        }
+
+        function showCelebration() {
+            if (consecutiveCorrect % 5 === 0 && consecutiveCorrect % 15 !== 0) {
+                let message = '';
+                switch (consecutiveCorrect) {
+                    case 5:
+                        message = "You're heating up!";
+                        break;
+                    case 10:
+                        message = "You're on fire...keep going!";
+                        break;
+                    case 20:
+                        message = "Wow, 20 in a row, you're a rock star!";
+                        break;
+                    case 25:
+                        message = "Amazing! 25 correct answers in a row!";
+                        break;
+                    case 35:
+                        message = "Spectacular! 35 in a row!";
+                        break;
+                    case 40:
+                        message = "Phenomenal! 40 consecutive correct answers!";
+                        break;
+                    case 50:
+                        message = "Unstoppable! 50 in a row!";
+                        break;
+                    case 65:
+                        message = "Extraordinary! 65 correct answers in a row!";
+                        break;
+                    case 70:
+                        message = "Fantastic! 70 in a row!";
+                        break;
+                    case 80:
+                        message = "Mind-blowing! 80 consecutive correct answers!";
+                        break;
+                    case 85:
+                        message = "Incredible! 85 correct answers in a row!";
+                        break;
+                    case 95:
+                        message = "Astounding! 95 in a row!";
+                        break;
+                    case 100:
+                        message = "You're a Mathrix Master! 100 correct answers in a row!";
+                        break;
+                    default:
+                        message = `Fantastic! ${consecutiveCorrect} correct answers in a row!`;
+                        break;
+                }
+                celebrationElement.textContent = message;
+                showFireAnimation();
+            }
+        }
+
+        function showFireAnimation() {
+            // Simple fire animation using canvas
+            const fireParticles = [];
+            const fireParticleCount = 50;
+
+            for (let i = 0; i < fireParticleCount; i++) {
+                fireParticles.push({
+                    x: Math.random() * fireCanvas.width,
+                    y: fireCanvas.height + Math.random() * 100,
+                    speedY: Math.random() * -3 - 2,
+                    color: `hsl(${Math.random() * 30}, 100%, 50%)`,
+                    size: Math.random() * 10 + 5,
+                    life: 100 + Math.random() * 50
+                });
+            }
+
+            function animateFire() {
+                fireCtx.clearRect(0, 0, fireCanvas.width, fireCanvas.height);
+                fireParticles.forEach((p, index) => {
+                    p.y += p.speedY;
+                    p.life--;
+                    fireCtx.globalCompositeOperation = 'lighter';
+                    fireCtx.fillStyle = p.color;
+                    fireCtx.beginPath();
+                    fireCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    fireCtx.fill();
+                    if (p.life <= 0) {
+                        fireParticles.splice(index, 1);
+                    }
+                });
+                if (fireParticles.length > 0) {
+                    requestAnimationFrame(animateFire);
+                } else {
+                    fireCtx.clearRect(0, 0, fireCanvas.width, fireCanvas.height);
+                }
+            }
+            animateFire();
+        }
+
+        function launchFireworks(levelUpMultiplier) {
+            // Enhanced fireworks effect based on level
+            const particles = [];
+            const particleCount = 100 * levelUpMultiplier; // Increase particle count with level
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: fireworksCanvas.width / 2,
+                    y: fireworksCanvas.height / 2,
+                    speedX: (Math.random() - 0.5) * 10,
+                    speedY: (Math.random() - 0.5) * 10,
+                    color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+                    size: Math.random() * 5 + 2,
+                    life: 100 + Math.random() * 100
+                });
+            }
+            function animateFireworks() {
+                fireworksCtx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+                particles.forEach((p, index) => {
+                    p.x += p.speedX;
+                    p.y += p.speedY;
+                    p.speedY += 0.05; // Gravity effect
+                    p.life--;
+                    fireworksCtx.globalCompositeOperation = 'lighter';
+                    fireworksCtx.fillStyle = p.color;
+                    fireworksCtx.beginPath();
+                    fireworksCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    fireworksCtx.fill();
+                    if (p.life <= 0) {
+                        particles.splice(index, 1);
+                    }
+                });
+                if (particles.length > 0) {
+                    requestAnimationFrame(animateFireworks);
+                } else {
+                    fireworksCtx.clearRect(0, 0, fireworksCanvas.width, fireworksCanvas.height);
+                }
+            }
+            animateFireworks();
+        }
+
+        generateProblem();
+    </script>
+
+</body>
+</html>
